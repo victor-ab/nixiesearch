@@ -95,7 +95,7 @@ case class SearchRoute(searcher: Searcher) extends Route with Logging {
     start <- IO(System.nanoTime())
     query <- request.as[SuggestRequest]
     _     <- info(s"suggest index='${searcher.index.name}' query=$query")
-
+    _     <- searcher.sync()
     response <- searcher.suggest(query)
     end      <- IO(System.nanoTime())
     payload  <- Ok(response.copy(took = (end - start) / 1000000000.0f))
@@ -104,6 +104,7 @@ case class SearchRoute(searcher: Searcher) extends Route with Logging {
   }
 
   def searchStreaming(request: SearchRequest): Stream[IO, SearchResponseFrame] = for {
+    _        <- Stream.eval(searcher.sync())
     response <- Stream.eval(searcher.search(request))
     frame    <- request.rag match {
       case Some(ragRequest) =>
@@ -118,6 +119,7 @@ case class SearchRoute(searcher: Searcher) extends Route with Logging {
 
   def searchBlocking(request: SearchRequest): IO[SearchResponse] = for {
     _        <- info(s"search index='${searcher.index.name}' query=$request")
+    _        <- searcher.sync()
     docs     <- searcher.search(request)
     response <- request.rag match {
       case None =>
